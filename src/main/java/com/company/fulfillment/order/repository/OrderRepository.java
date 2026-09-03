@@ -10,8 +10,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Optional<Order> findByIdAndTenantId(UUID id, UUID tenantId);
 
-    Optional<Order> findByReservationIdAndTenantId(
-            UUID reservationId,
-            UUID tenantId
+    Optional<Order> findByTenantIdAndReservationId(
+            UUID tenantId,
+            UUID reservationId
     );
 }

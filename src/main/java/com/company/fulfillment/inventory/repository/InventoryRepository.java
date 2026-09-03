@@ -37,4 +37,10 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
             @Param("productId") UUID productId,
             @Param("warehouseId") UUID warehouseId
     );
+
+    Optional<Inventory> findByTenantIdAndProductIdAndWarehouseId(
+            UUID tenantId,
+            UUID productId,
+            UUID warehouseId
+    );
 }

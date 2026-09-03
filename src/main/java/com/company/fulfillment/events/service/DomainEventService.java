@@ -31,6 +31,16 @@ public class DomainEventService {
 
         switch (eventType) {
 
+            case "StockReserved" -> {
+                event.setAggregateType("Reservation");
+
+                event.setPayload(
+                        """
+                        {"reservationId":"%s","status":"RESERVED"}
+                        """.formatted(aggregateId)
+                );
+            }
+
             case "ReservationExpired" -> {
                 event.setAggregateType("Reservation");
 

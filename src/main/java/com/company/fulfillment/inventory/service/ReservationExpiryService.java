@@ -38,13 +38,11 @@ public class ReservationExpiryService {
         this.inventoryRepository = inventoryRepository;
         this.domainEventService = domainEventService;
     }
-
     @Transactional
     public void expireReservation(
             UUID reservationId,
             UUID tenantId
     ) {
-
         Reservation reservation =
                 reservationRepository
                         .findForUpdate(reservationId, tenantId)
@@ -53,13 +51,9 @@ public class ReservationExpiryService {
                                         "Reservation not found"
                                 )
                         );
-
-        // Already processed
         if (!"RESERVED".equals(reservation.getStatus())) {
             return;
         }
-
-        // Not expired yet
         if (reservation.getExpiresAt().isAfter(Instant.now())) {
             return;
         }
@@ -74,6 +68,12 @@ public class ReservationExpiryService {
         domainEventService.saveEvent(
                 tenantId,
                 "ReservationExpired",
+                reservation.getId()
+        );
+
+        domainEventService.saveEvent(
+                tenantId,
+                "StockReleased",
                 reservation.getId()
         );
     }
@@ -97,7 +97,6 @@ public class ReservationExpiryService {
                             );
 
             for (ReservationAllocation allocation : allocations) {
-
                 Inventory inventory =
                         inventoryRepository
                                 .findForUpdateByWarehouse(

@@ -9,13 +9,14 @@ import com.company.fulfillment.order.repository.OrderRepository;
 import com.company.fulfillment.payment.entity.Payment;
 import com.company.fulfillment.payment.event.PaymentInitiatedEvent;
 import com.company.fulfillment.payment.repository.PaymentRepository;
-import com.company.fulfillment.payment.service.PaymentPort;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
+
 @Service
 public class OrderService {
 
@@ -39,30 +40,41 @@ public class OrderService {
     @Transactional
     public OrderResponse processOrder(UUID userId, UUID tenantId, OrderRequest orderRequest) {
         Reservation reservation = reservationRepository
-                .findByIdAndTenantId(
-                        orderRequest.reservationId(),
-                        tenantId
-                )
+                .findForUpdate(orderRequest.reservationId(), tenantId)
                 .orElseThrow(() ->
                         new RuntimeException("Reservation not found")
                 );
-
         if (!reservation.getUserId().equals(userId)) {
-            throw new RuntimeException("Reservation does not belong to user");
+            throw new RuntimeException(
+                    "Reservation does not belong to user"
+            );
         }
-
         if (!"RESERVED".equals(reservation.getStatus())) {
-            throw new RuntimeException("Reservation is not available");
+            throw new RuntimeException(
+                    "Reservation is not available"
+            );
         }
-
         if (!reservation.getExpiresAt().isAfter(Instant.now())) {
-            throw new RuntimeException("Reservation expired");
+            throw new RuntimeException(
+                    "Reservation expired"
+            );
+        }
+        Optional<Order> existingOrder =
+                orderRepository.findByTenantIdAndReservationId(
+                        tenantId,
+                        orderRequest.reservationId()
+                );
+
+        if (existingOrder.isPresent()) {
+            return new OrderResponse(
+                    existingOrder.get().getId(),
+                    existingOrder.get().getStatus()
+            );
         }
 
         Order order = new Order();
         order.setStatus("PAYMENT_PENDING");
         order.setReservationId(orderRequest.reservationId());
-
         order.setUserId(userId);
         order.setTenantId(tenantId);
         order = orderRepository.save(order);
@@ -72,10 +84,11 @@ public class OrderService {
         payment.setStatus("PENDING");
         payment.setTenantId(tenantId);
         paymentRepository.save(payment);
-
         eventPublisher.publishEvent(
-                new PaymentInitiatedEvent(payment.getId(), order.getId(), tenantId));
+                new PaymentInitiatedEvent(payment.getId(), order.getId(), tenantId)
+        );
 
-        return new OrderResponse(order.getId(), order.getStatus());
+        return new OrderResponse(order.getId(), order.getStatus()
+        );
     }
 }
