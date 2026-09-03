@@ -51,14 +51,7 @@ public class PaymentCallbackService {
     }
 
     @Transactional
-    public void handleCallback(
-            UUID tenantId,
-            PaymentCallbackRequest request
-    ) {
-
-        // --------------------------------------------------
-        // 1. Load payment
-        // --------------------------------------------------
+    public void handleCallback(UUID tenantId, PaymentCallbackRequest request) {
 
         Payment payment = paymentRepository
                 .findByIdAndTenantId(
@@ -68,35 +61,20 @@ public class PaymentCallbackService {
                 .orElseThrow(() ->
                         new RuntimeException("Payment not found"));
 
-        // --------------------------------------------------
-        // 2. Verify payment belongs to requested order
-        // --------------------------------------------------
-
         if (!payment.getOrderId().equals(request.orderId())) {
             throw new RuntimeException(
                     "Payment does not belong to order"
             );
         }
-
-        // --------------------------------------------------
-        // 3. Idempotency
-        // --------------------------------------------------
-
         if ("SUCCESS".equals(payment.getStatus())
                 || "FAILED".equals(payment.getStatus())
                 || "ORPHANED".equals(payment.getStatus())) {
-
             return;
         }
 
         if (!"PENDING".equals(payment.getStatus())) {
             return;
         }
-
-        // --------------------------------------------------
-        // 4. Load order
-        // --------------------------------------------------
-
         Order order = orderRepository
                 .findByIdAndTenantId(
                         request.orderId(),
@@ -105,20 +83,9 @@ public class PaymentCallbackService {
                 .orElseThrow(() ->
                         new RuntimeException("Order not found"));
 
-        // --------------------------------------------------
-        // 5. Order must still be awaiting payment
-        // --------------------------------------------------
-
         if (!"PAYMENT_PENDING".equals(order.getStatus())) {
             return;
         }
-
-        // --------------------------------------------------
-        // 6. Lock reservation
-        //
-        // This protects against scheduler expiry racing
-        // with payment callback.
-        // --------------------------------------------------
 
         Reservation reservation = reservationRepository
                 .findForUpdate(
@@ -128,15 +95,7 @@ public class PaymentCallbackService {
                 .orElseThrow(() ->
                         new RuntimeException("Reservation not found"));
 
-        // --------------------------------------------------
-        // FAILURE
-        // --------------------------------------------------
-
         if ("FAILURE".equals(request.status())) {
-
-            /*
-             * Only release stock if reservation is still holding it.
-             */
             if ("RESERVED".equals(reservation.getStatus())) {
                 releaseReservedStock(
                         tenantId,
@@ -144,27 +103,18 @@ public class PaymentCallbackService {
                 );
                 reservation.setStatus("CANCELLED");
             }
-
             order.setStatus("FAILED");
             payment.setStatus("FAILED");
-
             domainEventService.saveEvent(
                     tenantId,
                     "StockReleased",
                     reservation.getId()
             );
-
             return;
         }
 
-        // --------------------------------------------------
-        // TIMEOUT
-        // --------------------------------------------------
-
         if ("TIMEOUT".equals(request.status())) {
-
             if ("RESERVED".equals(reservation.getStatus())) {
-
                 releaseReservedStock(
                         tenantId,
                         reservation
@@ -172,7 +122,6 @@ public class PaymentCallbackService {
 
                 reservation.setStatus("CANCELLED");
             }
-
             order.setStatus("FAILED");
             payment.setStatus("TIMEOUT");
 
@@ -181,161 +130,80 @@ public class PaymentCallbackService {
                     "StockReleased",
                     reservation.getId()
             );
-
             return;
         }
-
-        // --------------------------------------------------
-        // SUCCESS
-        // --------------------------------------------------
-
         if ("SUCCESS".equals(request.status())) {
-
-            // --------------------------------------------------
-            // Reservation already expired/cancelled/confirmed
-            // --------------------------------------------------
-
             if (!"RESERVED".equals(reservation.getStatus())) {
-
                 payment.setStatus("ORPHANED");
-
                 return;
             }
-
-            // --------------------------------------------------
-            // Reservation TTL check
-            // --------------------------------------------------
 
             if (!reservation.getExpiresAt().isAfter(Instant.now())) {
-
-                /*
-                 * IMPORTANT:
-                 *
-                 * Do NOT deduct inventory.
-                 * Do NOT confirm order.
-                 *
-                 * Payment arrived after reservation expiry.
-                 */
                 payment.setStatus("ORPHANED");
-
                 return;
             }
-
-            // --------------------------------------------------
-            // Consume reserved stock
-            // --------------------------------------------------
-
-            List<ReservationItem> items =
-                    reservationItemRepository
-                            .findByReservationId(
-                                    reservation.getId()
-                            );
+            List<ReservationItem> items = reservationItemRepository
+                            .findByReservationId(reservation.getId());
 
             for (ReservationItem item : items) {
-
-                List<ReservationAllocation> allocations =
-                        allocationRepository
-                                .findByReservationItemId(
-                                        item.getId()
-                                );
+                List<ReservationAllocation> allocations = allocationRepository
+                                .findByReservationItemId(item.getId());
 
                 for (ReservationAllocation allocation : allocations) {
-
-                    Inventory inventory =
-                            inventoryRepository
+                    Inventory inventory = inventoryRepository
                                     .findForUpdateByWarehouse(
                                             tenantId,
                                             item.getProductId(),
                                             allocation.getWarehouseId()
                                     )
-                                    .orElseThrow(() ->
-                                            new RuntimeException(
-                                                    "Inventory not found"
-                                            ));
+                                    .orElseThrow(() -> new RuntimeException("Inventory not found"));
 
-                    int quantity =
-                            allocation.getQuantity();
+                    int quantity = allocation.getQuantity();
 
                     if (inventory.getReserved() < quantity) {
                         throw new RuntimeException(
                                 "Insufficient reserved stock"
                         );
                     }
-
                     if (inventory.getOnHand() < quantity) {
-                        throw new RuntimeException(
-                                "Insufficient on-hand stock"
-                        );
+                        throw new RuntimeException("Insufficient on-hand stock");
                     }
 
-                    inventory.setReserved(
-                            inventory.getReserved() - quantity
-                    );
-
-                    inventory.setOnHand(
-                            inventory.getOnHand() - quantity
-                    );
+                    inventory.setReserved(inventory.getReserved() - quantity);
+                    inventory.setOnHand(inventory.getOnHand() - quantity);
                 }
             }
-
-            // --------------------------------------------------
-            // Confirm everything
-            // --------------------------------------------------
-
             reservation.setStatus("CONFIRMED");
             order.setStatus("CONFIRMED");
             payment.setStatus("SUCCESS");
-
-            // --------------------------------------------------
-            // Domain event
-            // --------------------------------------------------
 
             domainEventService.saveEvent(
                     tenantId,
                     "OrderConfirmed",
                     order.getId()
             );
-
             return;
         }
 
-        // --------------------------------------------------
-        // Unsupported callback status
-        // --------------------------------------------------
-
-        throw new RuntimeException(
-                "Unsupported payment status: "
-                        + request.status()
+        throw new RuntimeException("Unsupported payment status: " + request.status()
         );
     }
-
-    // ==========================================================
-    // RELEASE RESERVED STOCK
-    // ==========================================================
 
     private void releaseReservedStock(
             UUID tenantId,
             Reservation reservation
     ) {
 
-        List<ReservationItem> items =
-                reservationItemRepository
-                        .findByReservationId(
-                                reservation.getId()
-                        );
+        List<ReservationItem> items = reservationItemRepository
+                        .findByReservationId(reservation.getId());
 
         for (ReservationItem item : items) {
 
-            List<ReservationAllocation> allocations =
-                    allocationRepository
-                            .findByReservationItemId(
-                                    item.getId()
-                            );
+            List<ReservationAllocation> allocations = allocationRepository
+                            .findByReservationItemId(item.getId());
 
             for (ReservationAllocation allocation : allocations) {
-
-                Inventory inventory =
-                        inventoryRepository
+                Inventory inventory = inventoryRepository
                                 .findForUpdateByWarehouse(
                                         tenantId,
                                         item.getProductId(),
@@ -346,17 +214,14 @@ public class PaymentCallbackService {
                                                 "Inventory not found"
                                         ));
 
-                int quantity =
-                        allocation.getQuantity();
-
+                int quantity = allocation.getQuantity();
                 if (inventory.getReserved() < quantity) {
                     throw new RuntimeException(
                             "Reserved stock cannot become negative"
                     );
                 }
 
-                inventory.setReserved(
-                        inventory.getReserved() - quantity
+                inventory.setReserved(inventory.getReserved() - quantity
                 );
             }
         }
