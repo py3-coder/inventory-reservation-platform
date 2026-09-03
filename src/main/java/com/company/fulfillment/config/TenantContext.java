@@ -4,9 +4,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.TimeZone;
 import java.util.UUID;
 
 public final class TenantContext {
+
+    static {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+    }
 
     private TenantContext() {}
 

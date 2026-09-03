@@ -1,9 +1,11 @@
 package com.company.fulfillment.events.service;
 
+import com.company.fulfillment.events.dto.DomainEventResponse;
 import com.company.fulfillment.events.entity.DomainEvent;
 import com.company.fulfillment.events.repository.DomainEventRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -33,7 +35,6 @@ public class DomainEventService {
 
             case "StockReserved" -> {
                 event.setAggregateType("Reservation");
-
                 event.setPayload(
                         """
                         {"reservationId":"%s","status":"RESERVED"}
@@ -43,7 +44,6 @@ public class DomainEventService {
 
             case "ReservationExpired" -> {
                 event.setAggregateType("Reservation");
-
                 event.setPayload(
                         """
                         {"reservationId":"%s","status":"EXPIRED"}
@@ -53,7 +53,6 @@ public class DomainEventService {
 
             case "StockReleased" -> {
                 event.setAggregateType("Reservation");
-
                 event.setPayload(
                         """
                         {"reservationId":"%s","status":"STOCK_RELEASED"}
@@ -63,7 +62,6 @@ public class DomainEventService {
 
             case "OrderConfirmed" -> {
                 event.setAggregateType("Order");
-
                 event.setPayload(
                         """
                         {"orderId":"%s","status":"CONFIRMED"}
@@ -75,6 +73,24 @@ public class DomainEventService {
                     "Unsupported domain event type: " + eventType
             );
         }
+
         domainEventRepository.save(event);
+    }
+
+    public List<DomainEventResponse> getEvents(UUID tenantId) {
+
+        return domainEventRepository
+                .findByTenantIdOrderByCreatedAtDesc(tenantId)
+                .stream()
+                .map(event -> new DomainEventResponse(
+                        event.getId(),
+                        event.getTenantId(),
+                        event.getEventType(),
+                        event.getAggregateType(),
+                        event.getAggregateId(),
+                        event.getPayload(),
+                        event.getCreatedAt()
+                ))
+                .toList();
     }
 }
