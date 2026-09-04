@@ -22,7 +22,7 @@ public class ReservationController {
     }
 
 
-    @PostMapping("/reservation")
+    @PostMapping("/reservations")
     public ResponseEntity<ReservationResponse> reserve(
             @RequestHeader("X-Tenant-Id") UUID tenantId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,

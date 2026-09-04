@@ -20,7 +20,7 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-    @PostMapping("/order")
+    @PostMapping("/orders")
     public ResponseEntity<OrderResponse> processOrder(
             @RequestHeader("X-Tenant-Id") UUID tenantId,
             @RequestBody OrderRequest orderRequest){
