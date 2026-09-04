@@ -7,7 +7,6 @@
 ## 1. Context
 
 The Inventory Reservation & Order Fulfillment Platform must support concurrent reservation requests without overselling stock.
-
 For example, if an inventory item has:
 
 - `on_hand = 5`
@@ -51,7 +50,6 @@ List<Inventory> findForUpdate(
 ```
 
 The lock is acquired inside a database transaction and is held until the transaction completes.
-
 Inventory reads that do not modify stock use normal non-locking queries. This avoids unnecessary database locks and allows read-only operations to remain lightweight.
 
 ### Transaction boundary
