@@ -118,7 +118,7 @@ concern and the system must never oversell stock.
                      └─────────────────┘
 
 ---
-
+```
 ## 5. Run with Docker
 
 ### Prerequisites
