@@ -1,8 +1,8 @@
 # ADR-001: Inventory Locking Strategy
 
 - **Status:** Accepted
-- **Date:** 2026-09-04
-- **Decision Owners:** Inventory Reservation Platform Team
+- **Date:** 2026-09-03
+- **Decision Owners:** Saurabh
 
 ## 1. Context
 
