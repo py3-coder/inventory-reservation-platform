@@ -96,8 +96,8 @@ concern and the system must never oversell stock.
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
         Reservation         Order          Admin APIs
-          Service          Service
-              │               │
+          Service          Service            │
+              │               │               │
               └───────────────┼───────────────┘
                               ▼
                      ┌─────────────────┐
@@ -117,9 +117,9 @@ concern and the system must never oversell stock.
                      │  (simulated)    │
                      └─────────────────┘
 
----
+
 ```
-## 5. Run with Docker
+## 4. Run with Docker
 
 ### Prerequisites
 
@@ -159,7 +159,7 @@ docker compose up -d --build
 
 ---
 
-## 6. API Documentation
+## 5. API Documentation
 
 Swagger UI:
 
@@ -181,7 +181,7 @@ http://localhost:8080/actuator/health
 
 ---
 
-## 7. Testing
+## 6. Testing
 
 The project includes integration tests covering:
 
